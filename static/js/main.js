@@ -1,269 +1,269 @@
 // static/js/main.js
-let globalData = null;
-let seasonalityChart = null;
-let growthChart = null;
-let seasonalityDataTable = null;
-let growthDataTable = null;
+let analysisResults = null;
+let charts = {};
 
-// Configuração dos gráficos
-const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-        legend: {
-            display: true,
-            position: 'top'
-        },
-        tooltip: {
-            callbacks: {
-                label: function(context) {
-                    return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + '%';
-                }
+$(document).ready(function() {
+    // Handle form submission
+    $('#uploadForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData();
+        const fileInput = $('#fileInput')[0];
+        formData.append('file', fileInput.files[0]);
+        
+        // Show loading
+        $('#loadingSpinner').removeClass('d-none');
+        
+        // Send to backend
+        $.ajax({
+            url: '/analyze',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                analysisResults = response;
+                displayResults(response);
+                $('#loadingSpinner').addClass('d-none');
+            },
+            error: function(xhr, status, error) {
+                alert('Erro ao processar arquivo: ' + error);
+                $('#loadingSpinner').addClass('d-none');
             }
-        }
-    },
-    scales: {
-        y: {
-            beginAtZero: true,
-            ticks: {
-                callback: function(value) {
-                    return value + '%';
-                }
-            }
-        }
-    }
-};
-
-// Meses do ano
-const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
-                    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-// Upload do arquivo
-document.getElementById('uploadForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const fileInput = document.getElementById('fileInput');
-    const sigmaInput = document.getElementById('sigmaInput');
-    
-    if (!fileInput.files[0]) {
-        alert('Por favor, selecione um arquivo');
-        return;
-    }
-    
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-    formData.append('sigma', sigmaInput.value);
-    
-    // Mostrar loading
-    document.getElementById('loadingSpinner').classList.remove('d-none');
-    document.getElementById('resultsSection').classList.add('d-none');
-    
-    try {
-        const response = await fetch('/upload', {
-            method: 'POST',
-            body: formData
         });
-        
-        if (!response.ok) {
-            throw new Error('Erro ao processar arquivo');
+    });
+    
+    // Export Excel
+    $('#exportExcel').on('click', function() {
+        if (analysisResults) {
+            window.location.href = '/export/excel?data=' + encodeURIComponent(JSON.stringify(analysisResults));
         }
-        
-        const data = await response.json();
-        
-        if (data.error) {
-            throw new Error(data.error);
-        }
-        
-        globalData = data;
-        displayResults(data);
-        
-    } catch (error) {
-        alert('Erro: ' + error.message);
-    } finally {
-        document.getElementById('loadingSpinner').classList.add('d-none');
-    }
+    });
 });
 
-// Exibir resultados
 function displayResults(data) {
-    // Mostrar seção de resultados
-    document.getElementById('resultsSection').classList.remove('d-none');
-    document.getElementById('resultsSection').classList.add('fade-in');
+    // Show results section
+    $('#resultsSection').removeClass('d-none');
     
-    // Preencher filtro de categorias
-    const categoryFilter = document.getElementById('categoryFilter');
-    categoryFilter.innerHTML = '<option value="">Todas as Categorias</option>';
-    data.categories.forEach(cat => {
-        const option = document.createElement('option');
-        option.value = cat.category;
-        option.textContent = cat.category;
-        categoryFilter.appendChild(option);
-    });
+    // Update summary cards
+    $('#totalSkus').text(data.total_skus);
+    $('#seasonalSkus').text(data.seasonal_skus);
+    $('#seasonalityPercentage').text(data.seasonality_percentage.toFixed(2) + '%');
+    $('#avgCV').text((data.stats.cv || 0).toFixed(2) + '%');
     
-    // Criar gráficos
-    updateCharts(data.categories);
+    // Create charts
+    createPieChart(data);
+    createTopSeasonalChart(data);
+    createHistogram(data);
     
-    // Preencher tabelas
-    updateTables(data.categories);
+    // Populate data table
+    populateDataTable(data.items);
 }
 
-// Atualizar gráficos
-function updateCharts(categories) {
-    const ctx1 = document.getElementById('seasonalityChart').getContext('2d');
-    const ctx2 = document.getElementById('growthChart').getContext('2d');
+function createPieChart(data) {
+    // Destroy existing chart if any
+    if (charts.pie) {
+        charts.pie.destroy();
+    }
     
-    // Destruir gráficos existentes
-    if (seasonalityChart) seasonalityChart.destroy();
-    if (growthChart) growthChart.destroy();
-    
-    // Preparar datasets
-    const seasonalityDatasets = [];
-    const growthDatasets = [];
-    
-    // Cores para diferentes categorias
-    const colors = [
-        '#14555a', '#b72026', '#00aeef', '#f7941d',
-        '#2ecc71', '#9b59b6', '#34495e', '#e74c3c'
-    ];
-    
-    categories.forEach((cat, index) => {
-        const color = colors[index % colors.length];
-        
-        seasonalityDatasets.push({
-            label: cat.category,
-            data: cat.seasonality_year,
-            borderColor: color,
-            backgroundColor: color + '33',
-            tension: 0.4
-        });
-        
-        growthDatasets.push({
-            label: cat.category,
-            data: cat.growth_month,
-            borderColor: color,
-            backgroundColor: color + '33',
-            tension: 0.4
-        });
-    });
-    
-    // Criar gráfico de sazonalidade
-    seasonalityChart = new Chart(ctx1, {
-        type: 'line',
+    const ctx = document.getElementById('seasonalityPieChart').getContext('2d');
+    charts.pie = new Chart(ctx, {
+        type: 'pie',
         data: {
-            labels: monthNames,
-            datasets: seasonalityDatasets
+            labels: ['Sazonais', 'Não Sazonais'],
+            datasets: [{
+                data: [
+                    data.seasonal_skus,
+                    data.total_skus - data.seasonal_skus
+                ],
+                backgroundColor: [
+                    'rgba(255, 99, 132, 0.8)',
+                    'rgba(54, 162, 235, 0.8)'
+                ],
+                borderColor: [
+                    'rgba(255, 99, 132, 1)',
+                    'rgba(54, 162, 235, 1)'
+                ],
+                borderWidth: 1
+            }]
         },
         options: {
-            ...chartOptions,
+            responsive: true,
             plugins: {
-                ...chartOptions.plugins,
-                title: {
-                    display: true,
-                    text: 'Distribuição Percentual ao Longo do Ano'
+                legend: {
+                    position: 'bottom'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(2);
+                            return `${label}: ${value} (${percentage}%)`;
+                        }
+                    }
                 }
             }
         }
     });
+}
+
+function createTopSeasonalChart(data) {
+    // Destroy existing chart if any
+    if (charts.bar) {
+        charts.bar.destroy();
+    }
     
-    // Criar gráfico de crescimento
-    growthChart = new Chart(ctx2, {
+    // Get top 10 seasonal items
+    const seasonalItems = data.items
+        .filter(item => item.is_seasonal)
+        .sort((a, b) => b.seasonality_index - a.seasonality_index)
+        .slice(0, 10);
+    
+    const ctx = document.getElementById('topSeasonalChart').getContext('2d');
+    charts.bar = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: monthNames,
-            datasets: growthDatasets
+            labels: seasonalItems.map(item => item.sku),
+            datasets: [{
+                label: 'Índice de Sazonalidade (%)',
+                data: seasonalItems.map(item => item.seasonality_index),
+                backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                borderColor: 'rgba(255, 159, 64, 1)',
+                borderWidth: 1
+            }]
         },
         options: {
-            ...chartOptions,
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
+                        }
+                    }
+                }
+            },
             plugins: {
-                ...chartOptions.plugins,
-                title: {
-                    display: true,
-                    text: 'Crescimento Mensal (%)'
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Índice: ${context.parsed.y.toFixed(2)}%`;
+                        }
+                    }
                 }
             }
         }
     });
 }
 
-// Atualizar tabelas
-function updateTables(categories) {
-    // Preparar dados para DataTables
-    const seasonalityData = [];
-    const growthData = [];
+function createHistogram(data) {
+    // Destroy existing chart if any
+    if (charts.histogram) {
+        charts.histogram.destroy();
+    }
     
-    categories.forEach(cat => {
-        const seasonRow = [cat.category, ...cat.seasonality_year.map(v => v.toFixed(2) + '%')];
-        const growthRow = [cat.category, ...cat.growth_month.map(v => v.toFixed(2) + '%')];
-        
-        seasonalityData.push(seasonRow);
-        growthData.push(growthRow);
+    // Create bins for histogram
+    const bins = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+    const binCounts = new Array(bins.length - 1).fill(0);
+    const binLabels = [];
+    
+    // Count items in each bin
+    data.items.forEach(item => {
+        const index = Math.floor(item.seasonality_index / 10);
+        if (index < binCounts.length) {
+            binCounts[index]++;
+        }
     });
     
-    // Destruir tabelas existentes
-    if (seasonalityDataTable) seasonalityDataTable.destroy();
-    if (growthDataTable) growthDataTable.destroy();
+    // Create labels
+    for (let i = 0; i < bins.length - 1; i++) {
+        binLabels.push(`${bins[i]}-${bins[i + 1]}%`);
+    }
     
-    // Criar DataTables
-    seasonalityDataTable = $('#seasonalityTable').DataTable({
-        data: seasonalityData,
-        language: {
-            url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
+    const ctx = document.getElementById('seasonalityHistogram').getContext('2d');
+    charts.histogram = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: binLabels,
+            datasets: [{
+                label: 'Quantidade de SKUs',
+                data: binCounts,
+                backgroundColor: 'rgba(75, 192, 192, 0.8)',
+                borderColor: 'rgba(75, 192, 192, 1)',
+                borderWidth: 1
+            }]
         },
-        pageLength: 10,
-        responsive: true,
-        order: [[0, 'asc']]
-    });
-    
-    growthDataTable = $('#growthTable').DataTable({
-        data: growthData,
-        language: {
-            url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
-        },
-        pageLength: 10,
-        responsive: true,
-        order: [[0, 'asc']]
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Índice de Sazonalidade'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
     });
 }
 
-// Filtrar por categoria
-document.getElementById('categoryFilter').addEventListener('change', (e) => {
-    const selectedCategory = e.target.value;
-    
-    if (!selectedCategory) {
-        // Mostrar todas as categorias
-        updateCharts(globalData.categories);
-        seasonalityDataTable.search('').draw();
-        growthDataTable.search('').draw();
-    } else {
-        // Filtrar categoria específica
-        const filtered = globalData.categories.filter(cat => cat.category === selectedCategory);
-        updateCharts(filtered);
-        seasonalityDataTable.search(selectedCategory).draw();
-        growthDataTable.search(selectedCategory).draw();
-    }
-});
-
-// Toggle tabelas
-function toggleTable(tableId) {
-    const container = document.getElementById(tableId + 'Container');
-    const button = container.previousElementSibling.querySelector('button i');
-    
-    if (container.style.display === 'none') {
-        container.style.display = 'block';
-        button.className = 'fas fa-chevron-up';
-    } else {
-        container.style.display = 'none';
-        button.className = 'fas fa-chevron-down';
-    }
-}
-
-// Download resultados
-async function downloadResults(format) {
-    if (!globalData) {
-        alert('Nenhum dado para download');
-        return;
+function populateDataTable(items) {
+    // Destroy existing DataTable if any
+    if ($.fn.DataTable.isDataTable('#dataTable')) {
+        $('#dataTable').DataTable().destroy();
     }
     
-    const dataStr = encodeURIComponent(JSON.stringify(globalData));
-    window.location.href = `/download/${format}?data=${dataStr}`;
+    // Clear table body
+    $('#dataTable tbody').empty();
+    
+    // Add rows
+    items.forEach(item => {
+        const row = `
+            <tr>
+                <td>${item.sku}</td>
+                <td>${item.description || '-'}</td>
+                <td>${item.category || '-'}</td>
+                <td>
+                    ${item.is_seasonal ? 
+                        '<span class="badge bg-danger">Sim</span>' : 
+                        '<span class="badge bg-success">Não</span>'}
+                </td>
+                <td>${item.seasonality_index.toFixed(2)}%</td>
+                <td>${(item.cv || 0).toFixed(2)}%</td>
+                <td>${item.avg_sales.toFixed(2)}</td>
+            </tr>
+        `;
+        $('#dataTable tbody').append(row);
+    });
+    
+    // Initialize DataTable
+    $('#dataTable').DataTable({
+        pageLength: 25,
+        order: [[4, 'desc']], // Order by seasonality index
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/pt-BR.json'
+        },
+        dom: 'Bfrtip',
+        buttons: [
+            'copy', 'csv', 'excel', 'pdf', 'print'
+        ]
+    });
 }

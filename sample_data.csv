@@ -1,0 +1,37 @@
+﻿Data,SKU,Descrição,Categoria,Vendas
+2023-01-01,PROD001,Protetor Solar FPS 50,Verão,46
+2023-01-31,PROD001,Protetor Solar FPS 50,Verão,69
+2023-03-02,PROD001,Protetor Solar FPS 50,Verão,84
+2023-04-01,PROD001,Protetor Solar FPS 50,Verão,100
+2023-05-01,PROD001,Protetor Solar FPS 50,Verão,147
+2023-05-31,PROD001,Protetor Solar FPS 50,Verão,196
+2023-06-30,PROD001,Protetor Solar FPS 50,Verão,258
+2023-07-30,PROD001,Protetor Solar FPS 50,Verão,200
+2023-08-29,PROD001,Protetor Solar FPS 50,Verão,150
+2023-09-28,PROD001,Protetor Solar FPS 50,Verão,93
+2023-10-28,PROD001,Protetor Solar FPS 50,Verão,67
+2023-11-27,PROD001,Protetor Solar FPS 50,Verão,42
+2023-01-01,PROD002,Shampoo Neutro,Higiene,100
+2023-01-31,PROD002,Shampoo Neutro,Higiene,99
+2023-03-02,PROD002,Shampoo Neutro,Higiene,96
+2023-04-01,PROD002,Shampoo Neutro,Higiene,102
+2023-05-01,PROD002,Shampoo Neutro,Higiene,100
+2023-05-31,PROD002,Shampoo Neutro,Higiene,96
+2023-06-30,PROD002,Shampoo Neutro,Higiene,99
+2023-07-30,PROD002,Shampoo Neutro,Higiene,95
+2023-08-29,PROD002,Shampoo Neutro,Higiene,104
+2023-09-28,PROD002,Shampoo Neutro,Higiene,100
+2023-10-28,PROD002,Shampoo Neutro,Higiene,103
+2023-11-27,PROD002,Shampoo Neutro,Higiene,95
+2023-01-01,PROD003,Hidratante Corporal,Inverno,149
+2023-01-31,PROD003,Hidratante Corporal,Inverno,185
+2023-03-02,PROD003,Hidratante Corporal,Inverno,124
+2023-04-01,PROD003,Hidratante Corporal,Inverno,84
+2023-05-01,PROD003,Hidratante Corporal,Inverno,68
+2023-05-31,PROD003,Hidratante Corporal,Inverno,51
+2023-06-30,PROD003,Hidratante Corporal,Inverno,49
+2023-07-30,PROD003,Hidratante Corporal,Inverno,42
+2023-08-29,PROD003,Hidratante Corporal,Inverno,64
+2023-09-28,PROD003,Hidratante Corporal,Inverno,108
+2023-10-28,PROD003,Hidratante Corporal,Inverno,136
+2023-11-27,PROD003,Hidratante Corporal,Inverno,168

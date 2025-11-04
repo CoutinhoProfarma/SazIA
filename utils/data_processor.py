@@ -1,143 +1,147 @@
 # utils/data_processor.py
 import pandas as pd
 import numpy as np
-from typing import Optional, Dict, List
-import warnings
-warnings.filterwarnings('ignore')
+from typing import Union, Optional
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DataProcessor:
-    """
-    Classe responsável pelo processamento inicial dos dados.
-    """
+    """Classe para processamento de dados de vendas"""
     
-    def __init__(self, filepath: str, sigma_threshold: float = 2):
-        """
-        Inicializa o processador de dados.
+    def __init__(self):
+        self.supported_formats = ['.csv', '.xlsx', '.xls']
+        logger.debug("DataProcessor inicializado")
         
-        Args:
-            filepath: Caminho do arquivo a ser processado
-            sigma_threshold: Número de desvios padrão para outliers
-        """
-        self.filepath = filepath
-        self.sigma_threshold = sigma_threshold
-        self.df = None
+    def load_data(self, filepath: str) -> pd.DataFrame:
+        """Carrega dados do arquivo"""
+        logger.info(f"📂 Carregando arquivo: {filepath}")
+        file_ext = os.path.splitext(filepath)[1].lower()
         
-    def load_data(self) -> Optional[pd.DataFrame]:
-        """
-        Carrega dados do arquivo CSV ou Excel.
+        if file_ext not in self.supported_formats:
+            logger.error(f"❌ Formato não suportado: {file_ext}")
+            raise ValueError(f"Formato não suportado: {file_ext}")
         
-        Returns:
-            DataFrame com os dados ou None se houver erro
-        """
         try:
-            # Tentar carregar o arquivo
-            if self.filepath.endswith('.csv'):
-                self.df = pd.read_csv(self.filepath, encoding='utf-8-sig')
-                if self.df.empty:
-                    self.df = pd.read_csv(self.filepath, encoding='latin1')
+            if file_ext == '.csv':
+                df = pd.read_csv(filepath)
+                logger.info(f"✅ CSV carregado: {df.shape[0]} linhas, {df.shape[1]} colunas")
             else:
-                # Para Excel, tentar diferentes engines
-                try:
-                    self.df = pd.read_excel(self.filepath, engine='openpyxl')
-                except:
-                    try:
-                        self.df = pd.read_excel(self.filepath, engine='xlrd')
-                    except:
-                        self.df = pd.read_excel(self.filepath)
-            
-            print(f"Arquivo carregado: {self.df.shape[0]} linhas, {self.df.shape[1]} colunas")
-            print(f"Colunas encontradas: {list(self.df.columns)[:5]}...")
-            
-            # Verificar se há dados
-            if self.df.empty:
-                raise ValueError("Arquivo está vazio")
-            
-            # Validar estrutura mínima (categoria + pelo menos 12 meses)
-            if len(self.df.columns) < 13:
-                raise ValueError(f"Arquivo deve ter pelo menos 13 colunas. Encontradas: {len(self.df.columns)}")
-            
-            # Identificar e renomear colunas
-            # Assumir que a primeira coluna é categoria e as demais são meses
-            original_columns = self.df.columns.tolist()
-            
-            # Criar novos nomes de colunas
-            new_columns = ['categoria']
-            
-            # Para as colunas de dados, usar os nomes originais ou criar padrão
-            for i in range(1, len(original_columns)):
-                if i <= 24:
-                    new_columns.append(f'mes_{i}')
-                else:
-                    new_columns.append(f'extra_{i}')
-            
-            # Aplicar novos nomes
-            self.df.columns = new_columns[:len(self.df.columns)]
-            
-            # Limpar a coluna categoria
-            self.df['categoria'] = self.df['categoria'].astype(str).str.strip()
-            
-            # Remover linhas onde categoria está vazia ou é NaN
-            self.df = self.df[self.df['categoria'].notna()]
-            self.df = self.df[self.df['categoria'] != '']
-            self.df = self.df[self.df['categoria'] != 'nan']
-            
-            # Converter colunas numéricas, mantendo apenas as primeiras 24 colunas de dados
-            num_cols = min(24, len(self.df.columns) - 1)
-            
-            for i in range(1, num_cols + 1):
-                col_name = f'mes_{i}'
-                if col_name in self.df.columns:
-                    # Limpar valores não numéricos
-                    self.df[col_name] = pd.to_numeric(
-                        self.df[col_name].astype(str).str.replace(',', '.').str.replace(' ', ''),
-                        errors='coerce'
-                    )
-                    # Preencher NaN com 0
-                    self.df[col_name] = self.df[col_name].fillna(0)
-            
-            # Manter apenas categoria + 24 meses (ou menos se não houver)
-            cols_to_keep = ['categoria'] + [f'mes_{i}' for i in range(1, min(25, len(self.df.columns)))]
-            self.df = self.df[cols_to_keep]
-            
-            # Remover linhas completamente zeradas (exceto categoria)
-            numeric_cols = [col for col in self.df.columns if col != 'categoria']
-            self.df = self.df[self.df[numeric_cols].sum(axis=1) > 0]
-            
-            print(f"Dados processados: {self.df.shape[0]} categorias, {len(numeric_cols)} meses")
-            print(f"Categorias encontradas: {self.df['categoria'].nunique()}")
-            
-            return self.df
-            
+                df = pd.read_excel(filepath)
+                logger.info(f"✅ Excel carregado: {df.shape[0]} linhas, {df.shape[1]} colunas")
         except Exception as e:
-            print(f"Erro detalhado ao carregar arquivo: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            return None
-    
-    def get_categories(self) -> List[str]:
-        """
-        Retorna lista de categorias únicas.
+            logger.error(f"❌ Erro ao ler arquivo: {e}")
+            raise
         
-        Returns:
-            Lista com categorias mercadológicas
-        """
-        if self.df is not None:
-            return self.df['categoria'].unique().tolist()
-        return []
+        return self.preprocess_data(df)
     
-    def get_category_data(self, category: str) -> pd.Series:
-        """
-        Obtém dados de vendas para uma categoria específica.
+    def preprocess_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Pré-processa os dados para análise"""
+        logger.info("🔄 Iniciando pré-processamento")
+        logger.debug(f"Colunas originais: {list(df.columns)}")
         
-        Args:
-            category: Nome da categoria
+        # Verificar colunas obrigatórias
+        required_columns = ['sku', 'sales']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        
+        if missing_columns:
+            logger.warning(f"⚠️ Colunas obrigatórias faltando: {missing_columns}")
+            logger.info("🔍 Tentando identificar colunas por padrões...")
+            df = self._identify_columns(df)
+            logger.debug(f"Colunas após identificação: {list(df.columns)}")
+        
+        # Converter tipos de dados
+        if 'sales' in df.columns:
+            before_count = len(df)
+            df['sales'] = pd.to_numeric(df['sales'], errors='coerce')
+            df = df.dropna(subset=['sales'])
+            after_count = len(df)
+            if before_count != after_count:
+                logger.warning(f"⚠️ {before_count - after_count} linhas removidas (sales inválidas)")
+        
+        # Adicionar colunas se não existirem
+        if 'date' not in df.columns:
+            logger.info("📅 Criando coluna de datas fictícias")
+            df['date'] = pd.date_range(start='2023-01-01', periods=len(df), freq='D')
+        else:
+            df['date'] = pd.to_datetime(df['date'], errors='coerce')
+        
+        if 'description' not in df.columns:
+            df['description'] = df['sku'].astype(str)
+        
+        if 'category' not in df.columns:
+            df['category'] = 'Geral'
+        
+        logger.info(f"✅ Pré-processamento concluído: {df.shape}")
+        return df
+    
+    def _identify_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Identifica colunas por padrões comuns"""
+        column_mapping = {}
+        
+        for col in df.columns:
+            col_lower = str(col).lower()
+            logger.debug(f"Analisando coluna: '{col}' (lower: '{col_lower}')")
             
-        Returns:
-            Series com dados mensais
-        """
-        category_data = self.df[self.df['categoria'] == category]
-        if not category_data.empty:
-            # Pegar apenas as colunas numéricas
-            numeric_data = category_data.iloc[0, 1:].values
-            return pd.Series(numeric_data)
-        return pd.Series()
+            # Identificar coluna SKU
+            if any(term in col_lower for term in ['sku', 'codigo', 'código', 'produto', 'item']):
+                column_mapping[col] = 'sku'
+                logger.info(f"✅ Coluna '{col}' identificada como SKU")
+            
+            # Identificar coluna de vendas
+            elif any(term in col_lower for term in ['venda', 'sales', 'quantidade', 'qty', 'volume']):
+                column_mapping[col] = 'sales'
+                logger.info(f"✅ Coluna '{col}' identificada como VENDAS")
+            
+            # Identificar coluna de data
+            elif any(term in col_lower for term in ['data', 'date', 'periodo', 'período']):
+                column_mapping[col] = 'date'
+                logger.info(f"✅ Coluna '{col}' identificada como DATA")
+            
+            # Identificar coluna de descrição
+            elif any(term in col_lower for term in ['desc', 'nome', 'name']):
+                column_mapping[col] = 'description'
+                logger.info(f"✅ Coluna '{col}' identificada como DESCRIÇÃO")
+            
+            # Identificar coluna de categoria
+            elif any(term in col_lower for term in ['categ', 'grupo', 'group']):
+                column_mapping[col] = 'category'
+                logger.info(f"✅ Coluna '{col}' identificada como CATEGORIA")
+        
+        # Renomear colunas
+        if column_mapping:
+            df = df.rename(columns=column_mapping)
+            logger.info(f"📝 {len(column_mapping)} colunas renomeadas")
+        
+        return df
+    
+    def validate_data(self, df: pd.DataFrame) -> tuple[bool, list]:
+        """Valida os dados"""
+        errors = []
+        logger.info("🔍 Validando dados...")
+        
+        # Verificar se há dados
+        if df.empty:
+            errors.append("DataFrame está vazio")
+            logger.error("❌ DataFrame vazio")
+        
+        # Verificar colunas obrigatórias
+        required_columns = ['sku', 'sales']
+        missing = [col for col in required_columns if col not in df.columns]
+        if missing:
+            errors.append(f"Colunas obrigatórias faltando: {missing}")
+            logger.error(f"❌ Colunas faltando: {missing}")
+        
+        # Verificar valores negativos em vendas
+        if 'sales' in df.columns and (df['sales'] < 0).any():
+            errors.append("Existem valores negativos em vendas")
+            logger.warning("⚠️ Valores negativos detectados em vendas")
+        
+        is_valid = len(errors) == 0
+        if is_valid:
+            logger.info("✅ Dados válidos")
+        else:
+            logger.error(f"❌ Dados inválidos: {errors}")
+        
+        return is_valid, errors

@@ -1,323 +1,107 @@
 # utils/report_generator.py
 import pandas as pd
-import numpy as np
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 from datetime import datetime
 import os
-from openpyxl import Workbook
-from openpyxl.styles import PatternFill, Alignment, Font, Border, Side
-from openpyxl.utils.dataframe import dataframe_to_rows
-import json
 
 class ReportGenerator:
-    """
-    Gerador de relatórios em Excel com formatação profissional.
-    """
-    
-    def __init__(self, analysis_results):
-        """
-        Inicializa o gerador de relatórios.
-        
-        Args:
-            analysis_results: Dicionário com resultados da análise
-        """
-        self.results = analysis_results
-        self.wb = None
-        
-        # Estilos Profarma
-        self.header_fill = PatternFill(start_color="14555a", end_color="14555a", fill_type="solid")
-        self.header_font = Font(color="FFFFFF", bold=True, size=12)
-        self.subheader_fill = PatternFill(start_color="00aeef", end_color="00aeef", fill_type="solid")
-        self.subheader_font = Font(color="FFFFFF", bold=True, size=11)
-        self.outlier_fill = PatternFill(start_color="FFE4E1", end_color="FFE4E1", fill_type="solid")
+    def __init__(self):
+        self.header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        self.header_font = Font(color="FFFFFF", bold=True)
         self.border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
             top=Side(style='thin'),
             bottom=Side(style='thin')
         )
-    
-    def generate_excel_report(self, output_dir='reports'):
+        
+    def generate_excel_report(self, analysis_results, output_path="reports"):
         """
-        Gera relatório completo em Excel.
+        Gera relatório Excel com análise de sazonalidade
         
         Args:
-            output_dir: Diretório de saída
+            analysis_results: Dicionário com resultados da análise
+            output_path: Caminho para salvar o relatório
             
         Returns:
             str: Caminho do arquivo gerado
         """
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-            
-            # Nome do arquivo com timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'relatorio_sazonalidade_{timestamp}.xlsx'
-            filepath = os.path.join(output_dir, filename)
-            
-            # Criar workbook
-            self.wb = Workbook()
-            
-            # Remover aba padrão
-            default_sheet = self.wb.active
-            self.wb.remove(default_sheet)
-            
-            # Criar abas
-            self._create_summary_sheet()
-            self._create_details_sheet()
-            self._create_outliers_sheet()
-            self._create_statistics_sheet()
-            
-            # Salvar arquivo
-            self.wb.save(filepath)
-            
-            print(f"Relatório gerado: {filepath}")
-            return filepath
-            
-        except Exception as e:
-            print(f"Erro ao gerar relatório: {str(e)}")
-            return None
-    
-    def _create_summary_sheet(self):
-        """Cria aba de resumo executivo."""
-        ws = self.wb.create_sheet("Resumo Executivo")
+        # Criar diretório se não existir
+        os.makedirs(output_path, exist_ok=True)
+        
+        # Criar workbook
+        wb = Workbook()
+        
+        # Aba de Resumo
+        ws = wb.active
+        ws.title = "Resumo"
         
         # Título
-        ws['A1'] = "RELATÓRIO DE ANÁLISE DE SAZONALIDADE"
-        ws['A1'].font = Font(size=16, bold=True, color="14555a")
-        ws.merge_cells('A1:F1')
+        ws['A1'] = "ANÁLISE DE SAZONALIDADE"
+        ws['A1'].font = Font(size=16, bold=True)
+        ws.merge_cells('A1:D1')
         
-        # Data do relatório
-        ws['A3'] = "Data do Relatório:"
-        ws['B3'] = datetime.now().strftime('%d/%m/%Y %H:%M')
+        # Informações gerais
+        ws['A3'] = "Período Analisado:"
+        ws['B3'] = f"{analysis_results.get('period', {}).get('start', 'N/A')} a {analysis_results.get('period', {}).get('end', 'N/A')}"
         
-        # Parâmetros utilizados
-        ws['A5'] = "PARÂMETROS DA ANÁLISE"
-        ws['A5'].font = self.header_font
-        ws['A5'].fill = self.header_fill
-        ws.merge_cells('A5:B5')
+        ws['A4'] = "Total de SKUs:"
+        ws['B4'] = analysis_results.get('total_skus', 0)
         
-        ws['A6'] = "Sigma Threshold:"
-        ws['B6'] = self.results.get('summary', {}).get('sigma_threshold', 2)
+        ws['A5'] = "SKUs Sazonais:"
+        ws['B5'] = analysis_results.get('seasonal_skus', 0)
         
-        # Estatísticas gerais
-        ws['A8'] = "ESTATÍSTICAS GERAIS"
-        ws['A8'].font = self.header_font
-        ws['A8'].fill = self.header_fill
-        ws.merge_cells('A8:B8')
+        ws['A6'] = "% de Sazonalidade:"
+        ws['B6'] = f"{analysis_results.get('seasonality_percentage', 0):.2f}%"
         
-        summary = self.results.get('summary', {})
-        ws['A9'] = "Total de Categorias:"
-        ws['B9'] = summary.get('processed', 0)
-        ws['A10'] = "Processadas com Sucesso:"
-        ws['B10'] = summary.get('successful', 0)
-        ws['A11'] = "Categorias com Erro:"
-        ws['B11'] = summary.get('errors', 0)
+        # Estatísticas principais
+        ws['A8'] = "ESTATÍSTICAS"
+        ws['A8'].font = Font(bold=True)
         
-        # Formatar colunas
-        ws.column_dimensions['A'].width = 25
-        ws.column_dimensions['B'].width = 20
+        stats = analysis_results.get('stats', {})
         
-        # Adicionar bordas
-        for row in range(5, 12):
-            for col in ['A', 'B']:
-                cell = ws[f'{col}{row}']
+        ws['A9'] = "Média:"
+        ws['B9'] = f"{stats.get('mean', 0):.2f}"
+        
+        ws['A10'] = "Desvio Padrão:"
+        ws['B10'] = f"{stats.get('std', 0):.2f}"
+        
+        ws['A11'] = "Coeficiente de Variação:"
+        ws['B11'] = f"{stats.get('cv', 0):.2f}%"
+        
+        ws['A12'] = "Mínimo:"
+        ws['B12'] = f"{stats.get('min', 0):.2f}"
+        
+        ws['A13'] = "Máximo:"
+        ws['B13'] = f"{stats.get('max', 0):.2f}"
+        
+        # Adicionar aba de SKUs se houver dados
+        if 'sku_metrics' in analysis_results and analysis_results['sku_metrics']:
+            ws2 = wb.create_sheet("SKUs")
+            
+            # Cabeçalhos
+            headers = ['SKU', 'Descrição', 'Categoria', 'Sazonal', 'Índice (%)', 'CV (%)', 'Vendas Média']
+            for col, header in enumerate(headers, 1):
+                cell = ws2.cell(row=1, column=col, value=header)
+                cell.fill = self.header_fill
+                cell.font = self.header_font
                 cell.border = self.border
-    
-    def _create_details_sheet(self):
-        """Cria aba com detalhes de todas as categorias."""
-        ws = self.wb.create_sheet("Detalhes por Categoria")
-        
-        # Cabeçalhos
-        headers = [
-            'Categoria',
-            'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-            'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
-            'Total Outliers'
-        ]
-        
-        # Escrever cabeçalhos
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col, value=header)
-            cell.font = self.header_font
-            cell.fill = self.header_fill
-            cell.alignment = Alignment(horizontal='center', vertical='center')
-            cell.border = self.border
-        
-        # Dados
-        row_num = 2
-        categories = self.results.get('categories', [])
-        
-        for cat in categories:
-            # Nome da categoria
-            ws.cell(row=row_num, column=1, value=cat.get('category', ''))
             
-            # Sazonalidade por mês
-            seasonality = cat.get('seasonality_year', [])
-            for month_idx, value in enumerate(seasonality[:12], 2):
-                cell = ws.cell(row=row_num, column=month_idx, value=value)
-                cell.number_format = '0.00%'
-                
-                # Destacar outliers
-                outliers = cat.get('outliers', {}).get('months', [])
-                if month_idx - 2 in outliers:
-                    cell.fill = self.outlier_fill
-            
-            # Total de outliers
-            total_outliers = len(cat.get('outliers', {}).get('months', []))
-            ws.cell(row=row_num, column=14, value=total_outliers)
-            
-            row_num += 1
+            # Dados
+            for row, item in enumerate(analysis_results['sku_metrics'], 2):
+                ws2.cell(row=row, column=1, value=item.get('sku', '')).border = self.border
+                ws2.cell(row=row, column=2, value=item.get('description', '')).border = self.border
+                ws2.cell(row=row, column=3, value=item.get('category', '')).border = self.border
+                ws2.cell(row=row, column=4, value='Sim' if item.get('is_seasonal', False) else 'Não').border = self.border
+                ws2.cell(row=row, column=5, value=f"{item.get('seasonality_index', 0):.2f}").border = self.border
+                ws2.cell(row=row, column=6, value=f"{item.get('cv', 0):.2f}").border = self.border
+                ws2.cell(row=row, column=7, value=f"{item.get('avg_sales', 0):.2f}").border = self.border
         
-        # Ajustar largura das colunas
-        ws.column_dimensions['A'].width = 30
-        for col in range(2, 15):
-            ws.column_dimensions[chr(64 + col)].width = 10
+        # Salvar arquivo
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"analise_sazonalidade_{timestamp}.xlsx"
+        filepath = os.path.join(output_path, filename)
         
-        # Adicionar bordas
-        for row in range(1, row_num):
-            for col in range(1, 15):
-                ws.cell(row=row, column=col).border = self.border
-    
-    def _create_outliers_sheet(self):
-        """Cria aba específica para outliers."""
-        ws = self.wb.create_sheet("Análise de Outliers")
-        
-        # Título
-        ws['A1'] = "ANÁLISE DE OUTLIERS POR CATEGORIA"
-        ws['A1'].font = Font(size=14, bold=True, color="14555a")
-        ws.merge_cells('A1:E1')
-        
-        # Cabeçalhos
-        headers = ['Categoria', 'Mês', 'Valor Original', 'Desvio (σ)', 'Status']
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=3, column=col, value=header)
-            cell.font = self.header_font
-            cell.fill = self.header_fill
-            cell.border = self.border
-        
-        # Dados de outliers
-        row_num = 4
-        month_names = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
-                       'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-        
-        for cat in self.results.get('categories', []):
-            outliers = cat.get('outliers', {})
-            outlier_months = outliers.get('months', [])
-            outlier_values = outliers.get('values', [])
-            
-            for month, value in zip(outlier_months, outlier_values):
-                ws.cell(row=row_num, column=1, value=cat.get('category', ''))
-                ws.cell(row=row_num, column=2, value=month_names[month] if month < 12 else str(month))
-                ws.cell(row=row_num, column=3, value=value).number_format = '0.00'
-                ws.cell(row=row_num, column=4, value=abs(value))
-                ws.cell(row=row_num, column=5, value='Outlier Detectado')
-                
-                # Colorir linha
-                for col in range(1, 6):
-                    ws.cell(row=row_num, column=col).fill = self.outlier_fill
-                    ws.cell(row=row_num, column=col).border = self.border
-                
-                row_num += 1
-        
-        # Ajustar larguras
-        ws.column_dimensions['A'].width = 30
-        ws.column_dimensions['B'].width = 12
-        ws.column_dimensions['C'].width = 15
-        ws.column_dimensions['D'].width = 12
-        ws.column_dimensions['E'].width = 20
-    
-    def _create_statistics_sheet(self):
-        """Cria aba com estatísticas detalhadas."""
-        ws = self.wb.create_sheet("Estatísticas")
-        
-        # Título
-        ws['A1'] = "ESTATÍSTICAS DETALHADAS POR CATEGORIA"
-        ws['A1'].font = Font(size=14, bold=True, color="14555a")
-        ws.merge_cells('A1:G1')
-        
-        # Cabeçalhos
-        headers = [
-            'Categoria', 
-            'Média', 
-            'Desvio Padrão',
-            'CV%',
-            'Min',
-            'Max',
-            'Amplitude'
-        ]
-        
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=3, column=col, value=header)
-            cell.font = self.header_font
-            cell.fill = self.header_fill
-            cell.alignment = Alignment(horizontal='center')
-            cell.border = self.border
-        
-        # Dados
-        row_num = 4
-        for cat in self.results.get('categories', []):
-            stats = cat.get('statistics', {})
-            
-            ws.cell(row=row_num, column=1, value=cat.get('category', ''))
-            ws.cell(row=row_num, column=2, value=stats.get('mean', 0)).number_format = '0.00'
-            ws.cell(row=row_num, column=3, value=stats.get('std', 0)).number_format = '0.00'
-            ws.cell(row=row_num, column=4, value=stats.get('cv', 0)).number_format = '0.00%'
-            ws.cell(row=row_num, column=5, value=stats.get('min', 0)).number_format = '0.00'
-            ws.cell(row=row_num, column=6, value=stats.get('max', 0)).number_format = '0.00'
-            ws.cell(row=row_num, column=7, value=stats.get('range', 0)).number_format = '0.00'
-            
-            # Bordas
-            for col in range(1, 8):
-                ws.cell(row=row_num, column=col).border = self.border
-            
-            row_num += 1
-        
-        # Ajustar larguras
-        ws.column_dimensions['A'].width = 30
-        for col in range(2, 8):
-            ws.column_dimensions[chr(64 + col)].width = 15
-    
-    def generate_json_report(self, output_dir='reports'):
-        """
-        Gera relatório em formato JSON.
-        
-        Args:
-            output_dir: Diretório de saída
-            
-        Returns:
-            str: Caminho do arquivo gerado
-        """
-        try:
-            os.makedirs(output_dir, exist_ok=True)
-            
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f'relatorio_sazonalidade_{timestamp}.json'
-            filepath = os.path.join(output_dir, filename)
-            
-            # Converter arrays numpy para listas
-            def convert_to_serializable(obj):
-                if isinstance(obj, np.ndarray):
-                    return obj.tolist()
-                elif isinstance(obj, np.integer):
-                    return int(obj)
-                elif isinstance(obj, np.floating):
-                    if np.isnan(obj) or np.isinf(obj):
-                        return None
-                    return float(obj)
-                elif isinstance(obj, dict):
-                    return {k: convert_to_serializable(v) for k, v in obj.items()}
-                elif isinstance(obj, list):
-                    return [convert_to_serializable(v) for v in obj]
-                return obj
-            
-            serializable_results = convert_to_serializable(self.results)
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(serializable_results, f, indent=2, ensure_ascii=False)
-            
-            print(f"Relatório JSON gerado: {filepath}")
-            return filepath
-            
-        except Exception as e:
-            print(f"Erro ao gerar relatório JSON: {str(e)}")
-            return None
+        wb.save(filepath)
+        return filepath

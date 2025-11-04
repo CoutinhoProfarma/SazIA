@@ -1,264 +1,135 @@
 # utils/statistics.py
-import pandas as pd
 import numpy as np
-from typing import Dict, List, Tuple
+import pandas as pd
 from scipy import stats
-import warnings
-warnings.filterwarnings('ignore')
+from typing import Dict, List, Any, Optional
 
-class StatisticalAnalyzer:
-    """
-    Classe para análises estatísticas e cálculo de sazonalidade.
-    """
+class StatisticsCalculator:
+    """Classe para cálculos estatísticos de sazonalidade"""
     
-    def __init__(self, df: pd.DataFrame, sigma_threshold: float = 2):
+    def __init__(self, threshold_cv: float = 0.3):
         """
-        Inicializa o analisador estatístico.
+        Inicializa o calculador
         
         Args:
-            df: DataFrame com os dados
-            sigma_threshold: Limite de sigmas para outliers
+            threshold_cv: Limite de CV para considerar sazonal (padrão 30%)
         """
-        self.df = df
-        self.sigma_threshold = sigma_threshold
-        self.calculation_memory = []
-        
-    def detect_and_treat_outliers(self, data: np.ndarray) -> Tuple[np.ndarray, Dict]:
+        self.threshold_cv = threshold_cv
+    
+    def calculate_seasonality(self, data: pd.DataFrame) -> Dict[str, Any]:
         """
-        Detecta e trata outliers usando z-score.
+        Calcula índices de sazonalidade e estatísticas
         
         Args:
-            data: Array de dados
+            data: DataFrame com dados de vendas
             
         Returns:
-            Tupla com dados tratados e estatísticas
+            Dict com análise completa de sazonalidade
         """
-        # Converter para array e remover zeros e NaN para análise de outliers
-        data = np.array(data, dtype=float)
-        clean_data = data[~np.isnan(data)]
-        # Considerar apenas valores positivos para análise
-        positive_data = clean_data[clean_data > 0]
-        
-        if len(positive_data) < 3:  # Precisamos de pelo menos 3 pontos
-            return data, {
-                'mean': np.mean(clean_data) if len(clean_data) > 0 else 0,
-                'std': 0,
-                'outlier_min': 0,
-                'outlier_max': np.inf,
-                'outliers_found': 0,
-                'total_points': len(clean_data)
-            }
-        
-        # Calcular estatísticas nos dados positivos
-        mean = np.mean(positive_data)
-        std = np.std(positive_data)
-        
-        if std == 0:  # Todos os valores são iguais
-            return data, {
-                'mean': mean,
-                'std': 0,
-                'outlier_min': mean,
-                'outlier_max': mean,
-                'outliers_found': 0,
-                'total_points': len(positive_data)
-            }
-        
-        # Calcular z-scores
-        z_scores = np.abs((positive_data - mean) / std)
-        
-        # Identificar outliers
-        outlier_mask = z_scores > self.sigma_threshold
-        
-        # Calcular limites
-        outlier_min = max(0, mean - (self.sigma_threshold * std))  # Não pode ser negativo
-        outlier_max = mean + (self.sigma_threshold * std)
-        
-        # Tratar outliers
-        treated_data = data.copy()
-        
-        if np.any(outlier_mask):
-            # Calcular média dos valores não-outliers
-            non_outlier_values = positive_data[~outlier_mask]
-            if len(non_outlier_values) > 0:
-                replacement_value = np.mean(non_outlier_values)
-            else:
-                replacement_value = mean
-            
-            # Aplicar tratamento no array original
-            for i, val in enumerate(data):
-                if val > 0:  # Só verificar valores positivos
-                    z_score = abs((val - mean) / std)
-                    if z_score > self.sigma_threshold:
-                        treated_data[i] = replacement_value
-        
-        stats_info = {
-            'mean': mean,
-            'std': std,
-            'outlier_min': outlier_min,
-            'outlier_max': outlier_max,
-            'outliers_found': int(np.sum(outlier_mask)),
-            'total_points': len(positive_data)
+        results = {
+            'items': [],
+            'stats': {},
+            'seasonal_skus': 0,
+            'total_skus': 0,
+            'seasonality_percentage': 0.0,
+            'period': {},
+            'threshold_cv': self.threshold_cv * 100,
+            'sku_metrics': []
         }
         
-        return treated_data, stats_info
+        # Processar cada SKU
+        seasonal_count = 0
+        total_count = 0
+        all_sales = []
+        
+        for sku in data['sku'].unique():
+            sku_data = data[data['sku'] == sku]
+            
+            # Calcular métricas do SKU
+            sku_metrics = self._calculate_sku_metrics(sku_data)
+            results['items'].append(sku_metrics)
+            results['sku_metrics'].append(sku_metrics)
+            
+            # Contadores
+            total_count += 1
+            if sku_metrics['is_seasonal']:
+                seasonal_count += 1
+            
+            # Coletar todas as vendas
+            all_sales.extend(sku_data['sales'].tolist())
+        
+        # Estatísticas gerais
+        if all_sales:
+            sales_array = np.array(all_sales)
+            mean_val = float(np.mean(sales_array))
+            std_val = float(np.std(sales_array))
+            
+            results['stats'] = {
+                'mean': mean_val,
+                'median': float(np.median(sales_array)),
+                'std': std_val,
+                'cv': (std_val / mean_val * 100) if mean_val > 0 else 0,
+                'min': float(np.min(sales_array)),
+                'max': float(np.max(sales_array)),
+                'range': float(np.max(sales_array) - np.min(sales_array)),
+                'q1': float(np.percentile(sales_array, 25)),
+                'q3': float(np.percentile(sales_array, 75))
+            }
+        else:
+            results['stats'] = {
+                'mean': 0, 'median': 0, 'std': 0, 'cv': 0,
+                'min': 0, 'max': 0, 'range': 0, 'q1': 0, 'q3': 0
+            }
+        
+        # Resumo geral
+        results['total_skus'] = total_count
+        results['seasonal_skus'] = seasonal_count
+        results['seasonality_percentage'] = (seasonal_count / total_count * 100) if total_count > 0 else 0
+        
+        # Período analisado
+        if 'date' in data.columns:
+            results['period'] = {
+                'start': data['date'].min().strftime('%Y-%m-%d') if pd.notna(data['date'].min()) else '',
+                'end': data['date'].max().strftime('%Y-%m-%d') if pd.notna(data['date'].max()) else ''
+            }
+        else:
+            results['period'] = {'start': '', 'end': ''}
+        
+        return results
     
-    def calculate_seasonality(self, category: str) -> Dict:
+    def _calculate_sku_metrics(self, sku_data: pd.DataFrame) -> Dict[str, Any]:
         """
-        Calcula sazonalidade para uma categoria.
+        Calcula métricas para um SKU específico
         
         Args:
-            category: Nome da categoria
+            sku_data: Dados de vendas do SKU
             
         Returns:
-            Dicionário com métricas de sazonalidade
+            Dict com métricas do SKU
         """
-        try:
-            # Obter dados da categoria
-            category_row = self.df[self.df['categoria'] == category]
-            
-            if category_row.empty:
-                print(f"Categoria '{category}' não encontrada")
-                return None
-            
-            # Pegar apenas colunas numéricas (excluir 'categoria')
-            numeric_cols = [col for col in category_row.columns if col != 'categoria']
-            category_data = category_row[numeric_cols].values.flatten()
-            
-            # Garantir que temos dados suficientes
-            if len(category_data) < 12:
-                print(f"Dados insuficientes para categoria '{category}': {len(category_data)} meses")
-                return None
-            
-            # Tratar outliers
-            treated_data, stats_info = self.detect_and_treat_outliers(category_data)
-            
-            # Considerar apenas os primeiros 24 meses (2 anos)
-            if len(treated_data) > 24:
-                treated_data = treated_data[:24]
-            
-            # Dividir em anos (máximo 2 anos)
-            num_months = len(treated_data)
-            
-            # Calcular médias mensais
-            monthly_averages = np.zeros(12)
-            monthly_counts = np.zeros(12)
-            
-            for i, value in enumerate(treated_data):
-                month_index = i % 12  # 0-11 para Jan-Dez
-                if not np.isnan(value) and value >= 0:
-                    monthly_averages[month_index] += value
-                    monthly_counts[month_index] += 1
-            
-            # Calcular médias
-            for i in range(12):
-                if monthly_counts[i] > 0:
-                    monthly_averages[i] = monthly_averages[i] / monthly_counts[i]
-                else:
-                    monthly_averages[i] = 0
-            
-            # Calcular sazonalidade como % do ano
-            total_year = np.sum(monthly_averages)
-            if total_year > 0:
-                seasonality_year = (monthly_averages / total_year * 100).tolist()
-            else:
-                seasonality_year = [0] * 12
-            
-            # Calcular crescimento mês a mês
-            growth_month = []
-            for i in range(12):
-                if i == 0:
-                    # Janeiro comparado com dezembro
-                    prev_value = monthly_averages[11]
-                else:
-                    prev_value = monthly_averages[i-1]
-                
-                curr_value = monthly_averages[i]
-                
-                if prev_value > 0:
-                    growth = ((curr_value - prev_value) / prev_value * 100)
-                elif curr_value > 0:
-                    growth = 100  # Crescimento de 0 para valor positivo
-                else:
-                    growth = 0
-                
-                growth_month.append(round(growth, 2))
-            
-            # Salvar memória de cálculo
-            memory_entry = {
-                'categoria': category,
-                'media': round(stats_info.get('mean', 0), 2),
-                'desvio_padrao': round(stats_info.get('std', 0), 2),
-                'outlier_min': round(stats_info.get('outlier_min', 0), 2),
-                'outlier_max': round(stats_info.get('outlier_max', 0), 2),
-                'outliers_encontrados': stats_info.get('outliers_found', 0),
-                'total_meses': num_months
-            }
-            
-            # Adicionar baseline mensal
-            for i, value in enumerate(monthly_averages):
-                memory_entry[f'baseline_mes_{i+1}'] = round(value, 2)
-            
-            self.calculation_memory.append(memory_entry)
-            
-            return {
-                'category': category,
-                'seasonality_year': [round(x, 2) for x in seasonality_year],
-                'growth_month': growth_month,
-                'monthly_averages': monthly_averages.tolist(),
-                'stats': stats_info
-            }
-            
-        except Exception as e:
-            print(f"Erro ao calcular sazonalidade para '{category}': {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            return None
-    
-    def process_all_categories(self) -> Dict:
-        """
-        Processa todas as categorias do DataFrame.
+        sales = sku_data['sales'].values
+        mean_sales = np.mean(sales)
+        std_sales = np.std(sales)
         
-        Returns:
-            Dicionário com resultados completos
-        """
-        try:
-            categories = self.df['categoria'].unique()
-            results = {
-                'categories': [],
-                'calculation_memory': [],
-                'summary': {
-                    'total_categories': len(categories),
-                    'processed': 0,
-                    'errors': 0
-                }
-            }
-            
-            print(f"Processando {len(categories)} categorias...")
-            
-            for i, category in enumerate(categories):
-                print(f"Processando categoria {i+1}/{len(categories)}: {category}")
-                
-                category_result = self.calculate_seasonality(category)
-                
-                if category_result:
-                    results['categories'].append(category_result)
-                    results['summary']['processed'] += 1
-                else:
-                    results['summary']['errors'] += 1
-                    print(f"Erro ao processar categoria: {category}")
-            
-            results['calculation_memory'] = self.calculation_memory
-            
-            print(f"Processamento concluído: {results['summary']['processed']} categorias processadas")
-            
-            return results
-            
-        except Exception as e:
-            print(f"Erro no processamento geral: {str(e)}")
-            import traceback
-            print(traceback.format_exc())
-            return {
-                'categories': [],
-                'calculation_memory': [],
-                'error': str(e)
-            }
+        # Calcular coeficiente de variação
+        cv = (std_sales / mean_sales) if mean_sales > 0 else 0
+        
+        # Determinar se é sazonal
+        is_seasonal = cv > self.threshold_cv
+        
+        # Calcular índice de sazonalidade (0-100)
+        seasonality_index = min(cv * 100, 100)
+        
+        return {
+            'sku': sku_data['sku'].iloc[0],
+            'description': sku_data['description'].iloc[0] if 'description' in sku_data.columns else '',
+            'category': sku_data['category'].iloc[0] if 'category' in sku_data.columns else '',
+            'is_seasonal': is_seasonal,
+            'seasonality_index': float(seasonality_index),
+            'avg_sales': float(mean_sales),
+            'total_sales': float(np.sum(sales)),
+            'cv': float(cv * 100),
+            'std': float(std_sales),
+            'min_sales': float(np.min(sales)),
+            'max_sales': float(np.max(sales))
+        }

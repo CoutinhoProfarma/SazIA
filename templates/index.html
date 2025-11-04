@@ -4,450 +4,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora de Sazonalidade - Profarma</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-        
-        .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            max-width: 800px;
-            width: 100%;
-            padding: 40px;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-        
-        .header h1 {
-            color: #333;
-            font-size: 2.5em;
-            margin-bottom: 10px;
-        }
-        
-        .header p {
-            color: #666;
-            font-size: 1.1em;
-        }
-        
-        .upload-area {
-            border: 3px dashed #ddd;
-            border-radius: 10px;
-            padding: 40px;
-            text-align: center;
-            transition: all 0.3s;
-            cursor: pointer;
-            margin-bottom: 30px;
-        }
-        
-        .upload-area:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
-        }
-        
-        .upload-area.dragging {
-            border-color: #667eea;
-            background: #f0f4ff;
-        }
-        
-        .upload-icon {
-            font-size: 3em;
-            color: #667eea;
-            margin-bottom: 20px;
-        }
-        
-        .file-input {
-            display: none;
-        }
-        
-        .btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            border-radius: 50px;
-            font-size: 1.1em;
-            cursor: pointer;
-            transition: transform 0.3s;
-            display: inline-block;
-            margin: 10px;
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-        }
-        
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .btn-secondary {
-            background: #6c757d;
-        }
-        
-        .settings {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .settings h3 {
-            color: #333;
-            margin-bottom: 15px;
-        }
-        
-        .setting-item {
-            margin-bottom: 15px;
-        }
-        
-        .setting-item label {
-            display: block;
-            color: #666;
-            margin-bottom: 5px;
-        }
-        
-        .setting-item input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 1em;
-        }
-        
-        .status-message {
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            display: none;
-        }
-        
-        .status-message.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .status-message.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .status-message.info {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-        
-        .results {
-            display: none;
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 30px;
-        }
-        
-        .results h3 {
-            color: #333;
-            margin-bottom: 15px;
-        }
-        
-        .result-item {
-            background: white;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-        }
-        
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-            display: none;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+    <title>SazIA - Análise de Sazonalidade</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- DataTables CSS -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>📊 Calculadora de Sazonalidade</h1>
-            <p>Análise estatística e detecção de outliers para categorias mercadológicas</p>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line"></i> SazIA
+            </a>
+            <span class="navbar-text text-white">
+                Sistema de Análise de Sazonalidade
+            </span>
         </div>
-        
-        <div class="settings">
-            <h3>⚙️ Configurações</h3>
-            <div class="setting-item">
-                <label for="sigmaThreshold">Limite de Sigma para Outliers:</label>
-                <input type="number" id="sigmaThreshold" value="2" min="1" max="5" step="0.5">
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Upload Section -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5><i class="fas fa-upload"></i> Carregar Dados</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <input type="file" class="form-control" id="fileInput" 
+                                           accept=".csv,.xlsx,.xls" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-play"></i> Analisar
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <div class="upload-area" id="uploadArea">
-            <div class="upload-icon">📁</div>
-            <p>Arraste seu arquivo Excel ou CSV aqui</p>
-            <p style="margin-top: 10px; color: #999;">ou</p>
-            <button class="btn" style="margin-top: 10px;">Selecionar Arquivo</button>
-            <input type="file" id="fileInput" class="file-input" accept=".csv,.xlsx">
-        </div>
-        
-        <div class="status-message" id="statusMessage"></div>
-        
-        <div class="spinner" id="spinner"></div>
-        
-        <div style="text-align: center; display: none;" id="actionButtons">
-            <button class="btn" id="analyzeBtn">🔍 Analisar Dados</button>
-            <button class="btn btn-secondary" id="reportBtn">📈 Gerar Relatório</button>
-        </div>
-        
-        <div class="results" id="results">
-            <h3>📊 Resultados da Análise</h3>
-            <div id="resultsContent"></div>
+
+        <!-- Results Section (Initially Hidden) -->
+        <div id="resultsSection" class="d-none">
+            <!-- Summary Cards -->
+            <div class="row mt-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary" id="totalSkus">0</h3>
+                            <p class="text-muted">Total de SKUs</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success" id="seasonalSkus">0</h3>
+                            <p class="text-muted">SKUs Sazonais</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-warning" id="seasonalityPercentage">0%</h3>
+                            <p class="text-muted">% de Sazonalidade</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-info" id="avgCV">0%</h3>
+                            <p class="text-muted">CV Médio</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="row mt-4">
+                <!-- Gráfico de Pizza - Distribuição de Sazonalidade -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>Distribuição de Sazonalidade</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="seasonalityPieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Barras - Top 10 SKUs Sazonais -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>Top 10 SKUs Mais Sazonais</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="topSeasonalChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Histogram Chart -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>Distribuição do Índice de Sazonalidade</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="seasonalityHistogram"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="row mt-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>Dados Detalhados</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table id="dataTable" class="table table-striped table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>SKU</th>
+                                            <th>Descrição</th>
+                                            <th>Categoria</th>
+                                            <th>Sazonal</th>
+                                            <th>Índice (%)</th>
+                                            <th>CV (%)</th>
+                                            <th>Vendas Média</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="row mt-4 mb-5">
+                <div class="col-12 text-center">
+                    <button id="exportExcel" class="btn btn-success">
+                        <i class="fas fa-file-excel"></i> Exportar Excel
+                    </button>
+                    <button id="exportPDF" class="btn btn-danger ms-2">
+                        <i class="fas fa-file-pdf"></i> Exportar PDF
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="d-none">
+        <div class="spinner-overlay">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Processando...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
-    <script>
-        // Variáveis globais
-        let uploadedFilePath = null;
-        
-        // Elementos do DOM
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const statusMessage = document.getElementById('statusMessage');
-        const spinner = document.getElementById('spinner');
-        const actionButtons = document.getElementById('actionButtons');
-        const analyzeBtn = document.getElementById('analyzeBtn');
-        const reportBtn = document.getElementById('reportBtn');
-        const results = document.getElementById('results');
-        const resultsContent = document.getElementById('resultsContent');
-        const sigmaThreshold = document.getElementById('sigmaThreshold');
-        
-        // Event listeners
-        uploadArea.addEventListener('click', () => fileInput.click());
-        fileInput.addEventListener('change', handleFileSelect);
-        analyzeBtn.addEventListener('click', analyzeData);
-        reportBtn.addEventListener('click', generateReport);
-        
-        // Drag and drop
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragging');
-        });
-        
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragging');
-        });
-        
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragging');
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                handleFile(files[0]);
-            }
-        });
-        
-        function showMessage(message, type) {
-            statusMessage.textContent = message;
-            statusMessage.className = `status-message ${type}`;
-            statusMessage.style.display = 'block';
-            
-            if (type !== 'error') {
-                setTimeout(() => {
-                    statusMessage.style.display = 'none';
-                }, 5000);
-            }
-        }
-        
-        function handleFileSelect(e) {
-            const file = e.target.files[0];
-            if (file) {
-                handleFile(file);
-            }
-        }
-        
-        async function handleFile(file) {
-            const formData = new FormData();
-            formData.append('file', file);
-            
-            spinner.style.display = 'block';
-            showMessage('Carregando arquivo...', 'info');
-            
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    throw new Error("Resposta não é JSON válido");
-                }
-                
-                const data = await response.json();
-                
-                spinner.style.display = 'none';
-                
-                if (response.ok) {
-                    uploadedFilePath = data.filepath;
-                    showMessage(
-                        `Arquivo carregado com sucesso! ${data.data.total_categories} categorias encontradas.`,
-                        'success'
-                    );
-                    actionButtons.style.display = 'block';
-                } else {
-                    showMessage(data.error || 'Erro ao carregar arquivo', 'error');
-                }
-            } catch (error) {
-                spinner.style.display = 'none';
-                console.error('Erro:', error);
-                showMessage('Erro ao processar arquivo: ' + error.message, 'error');
-            }
-        }
-        
-        async function analyzeData() {
-            if (!uploadedFilePath) {
-                showMessage('Nenhum arquivo carregado', 'error');
-                return;
-            }
-            
-            spinner.style.display = 'block';
-            showMessage('Analisando dados...', 'info');
-            
-            try {
-                const response = await fetch('/analyze', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        filepath: uploadedFilePath,
-                        sigma_threshold: parseFloat(sigmaThreshold.value)
-                    })
-                });
-                
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    throw new Error("Resposta não é JSON válido");
-                }
-                
-                const data = await response.json();
-                
-                spinner.style.display = 'none';
-                
-                if (response.ok) {
-                    showMessage('Análise concluída com sucesso!', 'success');
-                    displayResults(data.results);
-                } else {
-                    showMessage(data.error || 'Erro na análise', 'error');
-                }
-            } catch (error) {
-                spinner.style.display = 'none';
-                console.error('Erro:', error);
-                showMessage('Erro ao analisar dados: ' + error.message, 'error');
-            }
-        }
-        
-        async function generateReport() {
-            if (!uploadedFilePath) {
-                showMessage('Nenhum arquivo carregado', 'error');
-                return;
-            }
-            
-            spinner.style.display = 'block';
-            showMessage('Gerando relatório...', 'info');
-            
-            try {
-                const response = await fetch('/generate-report', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        filepath: uploadedFilePath,
-                        sigma_threshold: parseFloat(sigmaThreshold.value)
-                    })
-                });
-                
-                const contentType = response.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    throw new Error("Resposta não é JSON válido");
-                }
-                
-                const data = await response.json();
-                
-                spinner.style.display = 'none';
-                
-                if (response.ok) {
-                    showMessage('Relatório gerado com sucesso!', 'success');
-                    
-                    // Criar link para download
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = `/download-report/${data.report_name}`;
-                    downloadLink.download = data.report_name;
-                    downloadLink.click();
-                } else {
-                    showMessage(data.error || 'Erro ao gerar relatório', 'error');
-                }
-            } catch (error) {
-                spinner.style.display = 'none';
-                console.error('Erro:', error);
-                showMessage('Erro ao gerar relatório: ' + error.message, 'error');
-            }
-        }
-        
-        function displayResults(data) {
-            results.style.display = 'block';
-            
-            let html = '<div class="result-item">';
-            html += `<strong>Total de categorias processadas:</strong> ${data.total_processed}<br>`;
-            html += `<strong>Categorias com erro:</strong> ${data.summary.errors || 0}<br>`;
-            
-            if (data.has_more) {
-                html += '<br><em>Mostrando preview das primeiras 10 categorias. ';
-                html += 'Gere o relatório completo para ver todas.</em>';
-            }
-            html += '</div>';
-            
-            if (data.categories && data.categories.length > 0) {
-                data.categories.forEach(cat => {
-                    html += '<div class="result-item">';
-                    html += `<strong>${cat.category}</strong><br>`;
-                    html += `Sazonalidade (Jan-Jun): ${cat.seasonality_year.slice(0, 6).map(v => v + '%').join(', ')}<br>`;
-                    html += `Crescimento mensal (Jan-Jun): ${cat.growth_month.slice(0, 6).map(v => v + '%').join(', ')}`;
-                    html += '</div>';
-                });
-            }
-            
-            resultsContent.innerHTML = html;
-        }
-    </script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- DataTables JS -->
+    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
