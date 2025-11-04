@@ -2,11 +2,11 @@
 
 # Sistema de Análise de Sazonalidade - Profarma
 
-## 📊 Descrição
+## Descrição
 
 Aplicação web para análise de sazonalidade de vendas, desenvolvida para o Grupo Profarma. O sistema processa dados históricos de vendas, identifica e trata outliers estatisticamente, e calcula métricas de sazonalidade para apoio à tomada de decisão.
 
-## 🚀 Funcionalidades
+## Funcionalidades
 
 - **Upload de Dados**: Suporte para arquivos CSV e Excel
 - **Tratamento Estatístico**: Detecção e tratamento de outliers usando z-score configurável
@@ -18,12 +18,12 @@ Aplicação web para análise de sazonalidade de vendas, desenvolvida para o Gru
 - **Memória de Cálculo**: Registro completo das análises estatísticas
 - **Assistente Virtual**: Integração com SazIA para suporte ao usuário
 
-## 📋 Pré-requisitos
+## Pré-requisitos
 
 - Python 3.8+
 - pip (gerenciador de pacotes Python)
 
-## 🔧 Instalação
+## Instalação
 
 1. Clone o repositório:
 ```bash
