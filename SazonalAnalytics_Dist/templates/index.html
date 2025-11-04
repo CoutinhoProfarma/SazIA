@@ -1,0 +1,205 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise de Sazonalidade - Profarma</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- DataTables CSS -->
+    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <img src="{{ url_for('static', filename='img/logo.jpg') }}" alt="Profarma" height="40">
+                <span class="ms-3">Análise de Sazonalidade</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <!-- Upload Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card upload-card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="fas fa-upload"></i> Upload de Dados
+                        </h5>
+                        <form id="uploadForm">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="fileInput" class="form-label">Selecione o arquivo (CSV ou Excel)</label>
+                                        <input type="file" class="form-control" id="fileInput" accept=".csv,.xlsx,.xls" required>
+                                        <small class="text-muted">Arquivo com categoria na primeira coluna e 24 colunas de vendas mensais</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="sigmaInput" class="form-label">Sigma para Outliers</label>
+                                        <input type="number" class="form-control" id="sigmaInput" value="2" min="1" max="5" step="0.5" required>
+                                        <small class="text-muted">Número de desvios padrão</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-chart-line"></i> Processar Dados
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Processando...</span>
+            </div>
+            <p class="mt-2">Processando dados...</p>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="d-none">
+            <!-- Filter Section -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <label for="categoryFilter" class="form-label">Filtrar por Categoria:</label>
+                    <select id="categoryFilter" class="form-select">
+                        <option value="">Todas as Categorias</option>
+                    </select>
+                </div>
+                <div class="col-md-6 text-end">
+                    <button class="btn btn-success me-2" onclick="downloadResults('csv')">
+                        <i class="fas fa-download"></i> Download CSV
+                    </button>
+                    <button class="btn btn-success" onclick="downloadResults('xlsx')">
+                        <i class="fas fa-download"></i> Download Excel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>Sazonalidade Anual (%)</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="seasonalityChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6>Crescimento Mensal (%)</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="growthChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tables Section -->
+            <div class="row">
+                <div class="col-12">
+                    <!-- Seasonality Table -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6>Tabela de Sazonalidade Anual</h6>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleTable('seasonalityTable')">
+                                <i class="fas fa-chevron-up"></i>
+                            </button>
+                        </div>
+                        <div class="card-body" id="seasonalityTableContainer">
+                            <table id="seasonalityTable" class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Categoria</th>
+                                        <th>Jan</th>
+                                        <th>Fev</th>
+                                        <th>Mar</th>
+                                        <th>Abr</th>
+                                        <th>Mai</th>
+                                        <th>Jun</th>
+                                        <th>Jul</th>
+                                        <th>Ago</th>
+                                        <th>Set</th>
+                                        <th>Out</th>
+                                        <th>Nov</th>
+                                        <th>Dez</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Growth Table -->
+                    <div class="card mb-4">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6>Tabela de Crescimento Mensal</h6>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleTable('growthTable')">
+                                <i class="fas fa-chevron-up"></i>
+                            </button>
+                        </div>
+                        <div class="card-body" id="growthTableContainer">
+                            <table id="growthTable" class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Categoria</th>
+                                        <th>Jan</th>
+                                        <th>Fev</th>
+                                        <th>Mar</th>
+                                        <th>Abr</th>
+                                        <th>Mai</th>
+                                        <th>Jun</th>
+                                        <th>Jul</th>
+                                        <th>Ago</th>
+                                        <th>Set</th>
+                                        <th>Out</th>
+                                        <th>Nov</th>
+                                        <th>Dez</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SazIA Chat Bot -->
+    <script
+        src='https://saz-ia.pareto.io/embed.js'
+        data-agent-url='https://saz-ia.pareto.io'
+        data-embed-type='popup'>
+    </script>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

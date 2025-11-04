@@ -1,0 +1,18 @@
+
+SISTEMA DE ANÁLISE DE SAZONALIDADE - PROFARMA
+=============================================
+
+COMO USAR:
+1. Execute o arquivo 'SazonalAnalytics.exe'
+2. Clique em "Iniciar Sistema"
+3. O navegador abrirá automaticamente
+4. Faça upload do arquivo de dados
+5. Analise os resultados
+
+REQUISITOS:
+- Windows 7 ou superior
+- Navegador web moderno (Chrome, Firefox, Edge)
+
+SUPORTE:
+Entre em contato com a equipe de TI
+        
